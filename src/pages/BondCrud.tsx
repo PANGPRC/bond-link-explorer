@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Database, Plus, Pencil, Trash2, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import DynamicParams, { type ParamRow, BOND_FIELDS } from "@/components/DynamicParams";
 
 type OpType = "insert" | "update" | "delete";
 
@@ -22,36 +23,47 @@ const OP_CONFIG: Record<OpType, { label: string; icon: typeof Plus; color: strin
   delete: { label: "Delete", icon: Trash2, color: "text-destructive" },
 };
 
+// Fields available for create/update (exclude query-only fields like sort)
+const CRUD_FIELDS = BOND_FIELDS.filter(
+  (f) => !["sort_field", "sort_order"].includes(f.value)
+);
+
 export default function BondCrudPage() {
   const [opType, setOpType] = useState<OpType>("insert");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; msg: string } | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Insert fields
-  const [bondCode, setBondCode] = useState("");
-  const [bondName, setBondName] = useState("");
-  const [issueSize, setIssueSize] = useState("");
-  const [creditRating, setCreditRating] = useState("");
-  const [maturityDate, setMaturityDate] = useState("");
-  const [counterpartyName, setCounterpartyName] = useState("");
+  // Dynamic params for insert/update
+  const [params, setParams] = useState<ParamRow[]>([]);
+
+  // Batch mode for insert
   const [batchMode, setBatchMode] = useState(false);
   const [batchJson, setBatchJson] = useState("");
 
-  // Update/Delete filter
+  // Filter for update/delete
   const [filterBondId, setFilterBondId] = useState("");
 
-  // Update fields
-  const [updateBondName, setUpdateBondName] = useState("");
-  const [updateCreditRating, setUpdateCreditRating] = useState("");
-  const [updateCounterparty, setUpdateCounterparty] = useState("");
-
   const resetForm = () => {
-    setBondCode(""); setBondName(""); setIssueSize("");
-    setCreditRating(""); setMaturityDate(""); setCounterpartyName("");
-    setBatchJson(""); setFilterBondId("");
-    setUpdateBondName(""); setUpdateCreditRating(""); setUpdateCounterparty("");
+    setParams([]);
+    setBatchJson("");
+    setFilterBondId("");
     setResult(null);
+  };
+
+  const paramsToRecord = (rows: ParamRow[]): Record<string, unknown> => {
+    const record: Record<string, unknown> = {};
+    rows.forEach((r) => {
+      if (r.value.trim()) {
+        // Auto-convert numeric fields
+        if (r.field === "issue_size" || r.field === "coupon_rate") {
+          record[r.field] = Number(r.value);
+        } else {
+          record[r.field] = r.value.trim();
+        }
+      }
+    });
+    return record;
   };
 
   const buildInsertData = () => {
@@ -63,21 +75,16 @@ export default function BondCrudPage() {
         throw new Error("Invalid JSON format for batch import");
       }
     }
-    if (!bondCode || !bondName) throw new Error("Bond Code and Bond Name are required");
-    const record: Record<string, unknown> = { bond_code: bondCode, bond_name: bondName };
-    if (issueSize) record.issue_size = Number(issueSize);
-    if (creditRating) record.credit_rating = creditRating;
-    if (maturityDate) record.maturity_date = maturityDate;
-    if (counterpartyName) record.counterparty_name = counterpartyName;
+    const record = paramsToRecord(params);
+    if (!record.bond_code || !record.bond_name) {
+      throw new Error("Bond Code and Bond Name are required");
+    }
     return { records: [record] };
   };
 
   const buildUpdateData = () => {
     if (!filterBondId.trim()) throw new Error("Filter condition (Bond ID) is required for update");
-    const updates: Record<string, unknown> = {};
-    if (updateBondName) updates.bond_name = updateBondName;
-    if (updateCreditRating) updates.credit_rating = updateCreditRating;
-    if (updateCounterparty) updates.counterparty_name = updateCounterparty;
+    const updates = paramsToRecord(params);
     if (Object.keys(updates).length === 0) throw new Error("At least one field must be specified for update");
     return { filter: { bond_id: filterBondId.trim() }, updates };
   };
@@ -134,7 +141,7 @@ export default function BondCrudPage() {
           return (
             <button
               key={op}
-              onClick={() => { setOpType(op); setResult(null); }}
+              onClick={() => { setOpType(op); setResult(null); setParams([]); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
                 opType === op
                   ? "bg-primary text-primary-foreground border-primary"
@@ -171,31 +178,19 @@ export default function BondCrudPage() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Bond Code <span className="text-destructive">*</span></Label>
-                  <Input value={bondCode} onChange={(e) => setBondCode(e.target.value)} placeholder="e.g. 019673" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Record Fields</Label>
+                  <span className="text-xs text-muted-foreground">Bond Code and Bond Name are required</span>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Bond Name <span className="text-destructive">*</span></Label>
-                  <Input value={bondName} onChange={(e) => setBondName(e.target.value)} placeholder="e.g. 国债2024" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Issue Size</Label>
-                  <Input type="number" value={issueSize} onChange={(e) => setIssueSize(e.target.value)} placeholder="e.g. 1000000" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Credit Rating</Label>
-                  <Input value={creditRating} onChange={(e) => setCreditRating(e.target.value)} placeholder="e.g. AAA" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Maturity Date</Label>
-                  <Input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Counterparty Name</Label>
-                  <Input value={counterpartyName} onChange={(e) => setCounterpartyName(e.target.value)} placeholder="e.g. 中国银行" />
-                </div>
+                <DynamicParams
+                  params={params}
+                  onChange={setParams}
+                  availableFields={CRUD_FIELDS}
+                />
+                {params.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">Click "Add Parameter" to add fields for the new record.</p>
+                )}
               </div>
             )}
           </div>
@@ -212,21 +207,18 @@ export default function BondCrudPage() {
               <Input value={filterBondId} onChange={(e) => setFilterBondId(e.target.value)} placeholder="e.g. 1" />
             </div>
             <div className="border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground mb-3">Fields to update (fill only fields you want to change):</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Bond Name</Label>
-                  <Input value={updateBondName} onChange={(e) => setUpdateBondName(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Credit Rating</Label>
-                  <Input value={updateCreditRating} onChange={(e) => setUpdateCreditRating(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Counterparty Name</Label>
-                  <Input value={updateCounterparty} onChange={(e) => setUpdateCounterparty(e.target.value)} />
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm">Fields to Update</Label>
+                <span className="text-xs text-muted-foreground">Add fields you want to change</span>
               </div>
+              <DynamicParams
+                params={params}
+                onChange={setParams}
+                availableFields={CRUD_FIELDS}
+              />
+              {params.length === 0 && (
+                <p className="text-xs text-muted-foreground italic mt-2">Click "Add Parameter" to select fields to update.</p>
+              )}
             </div>
           </div>
         )}
