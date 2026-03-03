@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/table";
 import { Search, Loader2, ChevronDown, ChevronUp, RotateCcw, AlertTriangle } from "lucide-react";
 import DynamicParams, { type ParamRow, BOND_FIELDS } from "@/components/DynamicParams";
+import ConditionBuilder, { serializeConditions } from "@/components/query/ConditionBuilder";
+import { type ConditionOutput, QUERY_FIELDS } from "@/components/query/types";
 
 type QueryMode = "structured" | "natural";
 type StructuredLink = "L01" | "L03";
@@ -48,6 +50,7 @@ export default function BondQueryPage() {
 
   // Dynamic params for structured query
   const [params, setParams] = useState<ParamRow[]>([]);
+  const [conditions, setConditions] = useState<ConditionOutput>({});
 
   // Natural language
   const [nlQuery, setNlQuery] = useState("");
@@ -66,8 +69,11 @@ export default function BondQueryPage() {
     params.forEach((p) => {
       if (p.value.trim()) data[p.field] = p.value.trim();
     });
+    // Merge condition builder output
+    const condData = serializeConditions(conditions, QUERY_FIELDS);
+    Object.assign(data, condData);
     return data;
-  }, [queryMode, nlQuery, params, page, pageSize]);
+  }, [queryMode, nlQuery, params, page, pageSize, conditions]);
 
   const executeQuery = async (p = page) => {
     setLoading(true);
@@ -93,6 +99,7 @@ export default function BondQueryPage() {
 
   const resetForm = () => {
     setParams([]);
+    setConditions({});
     setNlQuery("");
     setPage(1);
     setResults([]);
@@ -225,6 +232,15 @@ export default function BondQueryPage() {
             {params.length === 0 && (
               <p className="text-xs text-muted-foreground italic">No parameters added. Click "Add Parameter" to add query conditions, or query directly for all records.</p>
             )}
+
+            {/* Condition Builder */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <ConditionBuilder
+                value={conditions}
+                onChange={setConditions}
+                availableFields={QUERY_FIELDS}
+              />
+            </div>
           </div>
         )}
 
