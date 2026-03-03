@@ -28,6 +28,7 @@ interface ConditionBuilderProps {
   value: ConditionOutput;
   onChange: (value: ConditionOutput) => void;
   availableFields?: FieldDef[];
+  disabled?: boolean; // 新增：disabled 属性（可选）
 }
 
 // ── Validation ──
@@ -68,6 +69,7 @@ export default function ConditionBuilder({
   value,
   onChange,
   availableFields = QUERY_FIELDS,
+  disabled = false, // 新增：接收 disabled 属性，默认值 false
 }: ConditionBuilderProps) {
   const [mode, setMode] = useState<"visual" | "manual">("visual");
   const [whereOpen, setWhereOpen] = useState(true);
@@ -83,22 +85,43 @@ export default function ConditionBuilder({
     [mode, value.where, availableFields]
   );
 
+  // 新增：禁用状态下阻止所有 onChange 操作
+  const wrappedOnChange = useCallback((newValue: ConditionOutput) => {
+    if (!disabled) {
+      onChange(newValue);
+    }
+  }, [disabled, onChange]);
+
   const setWhere = useCallback(
-    (g: WhereGroup) => onChange({ ...value, where: g }),
-    [value, onChange]
+    (g: WhereGroup) => wrappedOnChange({ ...value, where: g }), // 使用包装后的 onChange
+    [value, wrappedOnChange]
   );
   const setOrderBy = useCallback(
-    (items: OrderByItem[]) => onChange({ ...value, orderBy: items }),
-    [value, onChange]
+    (items: OrderByItem[]) => wrappedOnChange({ ...value, orderBy: items }), // 使用包装后的 onChange
+    [value, wrappedOnChange]
   );
   const setGroupBy = useCallback(
-    (state: GroupByState) => onChange({ ...value, groupBy: state }),
-    [value, onChange]
+    (state: GroupByState) => wrappedOnChange({ ...value, groupBy: state }), // 使用包装后的 onChange
+    [value, wrappedOnChange]
   );
   const setRawSql = useCallback(
-    (rawSql: string) => onChange({ ...value, rawSql }),
-    [value, onChange]
+    (rawSql: string) => wrappedOnChange({ ...value, rawSql }), // 使用包装后的 onChange
+    [value, wrappedOnChange]
   );
+
+  // 新增：禁用状态下阻止模式切换
+  const handleModeChange = useCallback((v: boolean) => {
+    if (!disabled) {
+      setMode(v ? "manual" : "visual");
+    }
+  }, [disabled]);
+
+  // 新增：禁用状态下阻止折叠面板切换
+  const handleCollapsibleToggle = useCallback((open: boolean, setter: (v: boolean) => void) => {
+    if (!disabled) {
+      setter(open);
+    }
+  }, [disabled]);
 
   const whereCount = value.where ? countConditions(value.where) : 0;
 
@@ -111,7 +134,8 @@ export default function ConditionBuilder({
           <Eye className="w-3.5 h-3.5 text-muted-foreground" />
           <Switch
             checked={mode === "manual"}
-            onCheckedChange={(v) => setMode(v ? "manual" : "visual")}
+            onCheckedChange={handleModeChange} // 使用包装后的切换函数
+            disabled={disabled} // 应用 disabled 属性
           />
           <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{mode === "visual" ? "Visual" : "Manual SQL"}</span>
@@ -135,6 +159,7 @@ export default function ConditionBuilder({
             placeholder={`Enter SQL condition fragments, e.g.:\nWHERE credit_rating = 'AAA' AND issue_size > 1000000\nORDER BY maturity_date DESC\nGROUP BY bond_type`}
             rows={5}
             className="font-mono text-xs"
+            disabled={disabled} // 应用 disabled 属性
           />
           <p className="text-[11px] text-muted-foreground">
             Enter raw WHERE, ORDER BY, GROUP BY clauses. Fields: {availableFields.map((f) => f.value).join(", ")}
@@ -144,8 +169,14 @@ export default function ConditionBuilder({
         /* ── Visual mode ── */
         <div className="space-y-2">
           {/* WHERE */}
-          <Collapsible open={whereOpen} onOpenChange={setWhereOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
+          <Collapsible open={whereOpen} onOpenChange={(open) => handleCollapsibleToggle(open, setWhereOpen)}>
+            <CollapsibleTrigger
+              className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-muted/50 transition-colors"
+              style={{
+                opacity: disabled ? 0.7 : 1,
+                cursor: disabled ? "not-allowed" : "pointer"
+              }} // 禁用时视觉反馈
+            >
               {whereOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               <span className="text-xs font-semibold">WHERE</span>
               {whereCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{whereCount}</Badge>}
@@ -156,25 +187,43 @@ export default function ConditionBuilder({
                 onChange={setWhere}
                 errors={validationErrors}
                 availableFields={availableFields}
+                disabled={disabled} // 传递 disabled 给子组件
               />
             </CollapsibleContent>
           </Collapsible>
 
           {/* ORDER BY */}
-          <Collapsible open={orderByOpen} onOpenChange={setOrderByOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
+          <Collapsible open={orderByOpen} onOpenChange={(open) => handleCollapsibleToggle(open, setOrderByOpen)}>
+            <CollapsibleTrigger
+              className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-muted/50 transition-colors"
+              style={{
+                opacity: disabled ? 0.7 : 1,
+                cursor: disabled ? "not-allowed" : "pointer"
+              }} // 禁用时视觉反馈
+            >
               {orderByOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               <span className="text-xs font-semibold">ORDER BY</span>
               {orderByItems.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{orderByItems.length}</Badge>}
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <OrderByBuilder items={orderByItems} onChange={setOrderBy} availableFields={availableFields} />
+              <OrderByBuilder
+                items={orderByItems}
+                onChange={setOrderBy}
+                availableFields={availableFields}
+                disabled={disabled} // 传递 disabled 给子组件
+              />
             </CollapsibleContent>
           </Collapsible>
 
           {/* GROUP BY */}
-          <Collapsible open={groupByOpen} onOpenChange={setGroupByOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
+          <Collapsible open={groupByOpen} onOpenChange={(open) => handleCollapsibleToggle(open, setGroupByOpen)}>
+            <CollapsibleTrigger
+              className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded hover:bg-muted/50 transition-colors"
+              style={{
+                opacity: disabled ? 0.7 : 1,
+                cursor: disabled ? "not-allowed" : "pointer"
+              }} // 禁用时视觉反馈
+            >
               {groupByOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               <span className="text-xs font-semibold">GROUP BY</span>
               {groupByState.fields.length > 0 && (
@@ -184,7 +233,12 @@ export default function ConditionBuilder({
               )}
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <GroupByBuilder state={groupByState} onChange={setGroupBy} availableFields={availableFields} />
+              <GroupByBuilder
+                state={groupByState}
+                onChange={setGroupBy}
+                availableFields={availableFields}
+                disabled={disabled} // 传递 disabled 给子组件
+              />
             </CollapsibleContent>
           </Collapsible>
         </div>

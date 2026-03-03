@@ -7,14 +7,26 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+*.lcov
+.nyc_output
+
+# Production
 dist
 dist-ssr
+build
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -22,3 +34,51 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Build tools
+.cache
+.parcel-cache
+.next
+.nuxt
+.vuepress/dist
+.serverless/
+.fusebox/
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+
+# Bun
+bun.lockb  # 如果你团队统一用 Bun 管理依赖，这个可以保留；如果混用，建议加入 .gitignore
+# bun.lockb
+
+# 项目内重复/冗余文件（根据你提供的目录结构）
+**/sidebar.tsx
+**/skeleton.tsx
+**/slider.tsx
+**/sonner.tsx
+**/switch.tsx
+**/table.tsx
+**/tabs.tsx
+**/textarea.tsx
+**/toast.tsx
+**/toaster.tsx
+**/toggle-group.tsx
+**/toggle.tsx
+**/tooltip.tsx
+**/use-toast.ts
+**/use-mobile.tsx
+**/api.ts
+**/utils.ts
+**/BondCrud.tsx
+**/Index.tsx

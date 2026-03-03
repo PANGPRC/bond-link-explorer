@@ -45,6 +45,10 @@ interface DynamicParamsProps {
   requiredFields?: string[];
   /** Subset of fields to show in dropdown; defaults to all */
   availableFields?: ParamField[];
+  /** Whether the component is disabled (新增 disabled 属性) */
+  disabled?: boolean;
+  /** 模式：select-仅选择字段（输出字段），input-字段+值（筛选条件） */
+  mode?: "select" | "input";
 }
 
 export default function DynamicParams({
@@ -52,27 +56,43 @@ export default function DynamicParams({
   onChange,
   requiredFields = [],
   availableFields = BOND_FIELDS,
+  disabled = false,
+  mode = "input", // 默认保持原有input模式
 }: DynamicParamsProps) {
   const usedFields = params.map((p) => p.field);
 
   const addRow = () => {
+    if (disabled) return;
+
     const next = availableFields.find((f) => !usedFields.includes(f.value));
     if (next) {
-      onChange([...params, { field: next.value, value: "" }]);
+      // select模式下，value直接等于field
+      onChange([...params, { field: next.value, value: mode === "select" ? next.value : "" }]);
     }
   };
 
   const removeRow = (index: number) => {
+    if (disabled) return;
     onChange(params.filter((_, i) => i !== index));
   };
 
   const updateField = (index: number, field: string) => {
+    if (disabled) return;
+
     const updated = [...params];
-    updated[index] = { ...updated[index], field };
+    // select模式下，value同步更新为field
+    updated[index] = {
+      ...updated[index],
+      field,
+      value: mode === "select" ? field : updated[index].value
+    };
     onChange(updated);
   };
 
   const updateValue = (index: number, value: string) => {
+    // select模式下不允许修改value
+    if (disabled || mode === "select") return;
+
     const updated = [...params];
     updated[index] = { ...updated[index], value };
     onChange(updated);
@@ -84,13 +104,16 @@ export default function DynamicParams({
     <div className="space-y-2">
       {params.map((row, i) => {
         const isRequired = requiredFields.includes(row.field);
-        // Available options for this row: current selection + unused fields
         const options = availableFields.filter(
           (f) => f.value === row.field || !usedFields.includes(f.value)
         );
         return (
           <div key={i} className="flex items-center gap-2">
-            <Select value={row.field} onValueChange={(v) => updateField(i, v)}>
+            <Select
+              value={row.field}
+              onValueChange={(v) => updateField(i, v)}
+              disabled={disabled}
+            >
               <SelectTrigger className="w-[180px] h-9 text-xs">
                 <SelectValue placeholder="Select field" />
               </SelectTrigger>
@@ -102,12 +125,18 @@ export default function DynamicParams({
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              className="flex-1 h-9 text-sm"
-              value={row.value}
-              onChange={(e) => updateValue(i, e.target.value)}
-              placeholder={`Enter ${availableFields.find((f) => f.value === row.field)?.label ?? "value"}`}
-            />
+
+            {/* select模式下隐藏输入框 */}
+            {mode === "input" && (
+              <Input
+                className="flex-1 h-9 text-sm"
+                value={row.value}
+                onChange={(e) => updateValue(i, e.target.value)}
+                placeholder={`Enter ${availableFields.find((f) => f.value === row.field)?.label ?? "value"}`}
+                disabled={disabled}
+              />
+            )}
+
             {!isRequired && (
               <Button
                 type="button"
@@ -115,6 +144,7 @@ export default function DynamicParams({
                 size="icon"
                 className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
                 onClick={() => removeRow(i)}
+                disabled={disabled}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -130,9 +160,10 @@ export default function DynamicParams({
           size="sm"
           className="mt-1"
           onClick={addRow}
+          disabled={disabled}
         >
           <Plus className="w-3.5 h-3.5 mr-1.5" />
-          Add Parameter
+          {mode === "select" ? "Add Output Field" : "Add Parameter"}
         </Button>
       )}
     </div>
